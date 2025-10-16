@@ -44,5 +44,14 @@ with col3:
 """)
 
 
+st.title("Approach")
 
+st.markdown("""We built a data-driven sustainability simulation using Snowflake and Streamlit — to identify the key levers that can accelerate aviation toward net zero.
+ \n
+Attributes analyzed:
+1. Use of Sustainable Aviation Fuel (SAF) – replacing fossil jet fuel.
+2. Carbon Offsetting – investing in reforestation and renewable projects.
+3. Green Membership Program – rewarding customers with points for eco-friendly choices, redeemable toward carbon offsets.
+ \n
+All this powered by dummy but realistic data representing airline operations and customer activity.""")
 

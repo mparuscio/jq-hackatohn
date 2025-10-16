@@ -10,7 +10,7 @@ import altair as alt
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
-st.title("Route Analysis")
+st.title("Demo & Insights")
 
 session = get_active_session()
 
@@ -198,6 +198,214 @@ fig.update_layout(
     yaxis_title='Fuel Amount (kg)',
     barmode='stack',
     showlegend=True
+)
+
+st.plotly_chart(fig)
+
+efficiency_query = f"""
+select * from {db}.{schema}.origin_destination_summary_vw;
+"""
+efficiency_df = session.sql(efficiency_query).to_pandas()
+
+# Create parameters per route
+st.sidebar.header("Growth Rate Projections")
+route_parameters = {}
+
+st.sidebar.subheader(f"Overall Parameters")
+overall_parameters = {
+    'offset_fuel_growth': st.sidebar.slider(
+        f"Offset Fuel Percentage Annual Growth (%)",
+        0.0, 20.0, 1.0,
+        key=f"offset__growth"
+    ),
+    'total_fuel_growth': st.sidebar.slider(
+        f"Total Fuel Annual Growth Rate (%)",
+        -10.0, 10.0, 2.0,
+        key=f"total_fuel_"
+    ),
+    'sustainable_fuel_growth': st.sidebar.slider(
+        f"Sustainable Fuel Percentage Annual Growth (%)",
+        0.0, 20.0, 5.0,
+        key=f"sust_fuel_"
+    )
+}
+
+years_to_project = 25
+
+offset_types = ["OFFSET", "SAF"]
+
+
+# Calculate projections for each route
+def calculate_projections(row, years, params):
+    projections = []
+    for year in range(years + 1):
+        total_fuel = (row['TOTAL_FUEL_KG']) * (1 + params['total_fuel_growth'] / 100) ** year
+        sust_percentage = params['sustainable_fuel_growth']
+        sustainable_fuel = row['SAF'] * ((1 + sust_percentage / 100) ** year)
+        offset_percentage = params['offset_fuel_growth']
+        offset_fuel = (row['OFFSET_FUEL_KG']) * ((1 + offset_percentage / 100) ** year)
+        # Calculate individual SAF components using the df dataframe
+        saf_components = {}
+        # for saf_type in offset_type:  # Assuming df has saf_type column
+        #     component_pct = df[df['saf_type'] == saf_type]['percentage'].iloc[0]  # Get percentage for this SAF type
+        #     saf_components[saf_type] = sustainable_fuel * (component_pct/100)
+        saf_components = {"SAF": sustainable_fuel, "OFFSET": offset_fuel}
+        projections.append({
+            'Year': f'{2025 + year}',
+            'Total Fuel': total_fuel,
+            'Sustainable Fuel': saf_components
+        })
+    return projections
+
+
+# Create visualization
+fig = go.Figure()
+
+for index, row in efficiency_df.iterrows():
+    projections = calculate_projections(row, years_to_project, overall_parameters)
+
+    # Add line for total fuel
+    fig.add_trace(go.Scatter(
+        name=f'Total Fuel',
+        x=[p['Year'] for p in projections],
+        y=[p['Total Fuel'] for p in projections],
+        mode='lines+markers',
+        line=dict(width=3)
+    ))
+
+    # Add stacked bars for SAF components
+    base = None  # This will store the base for stacking
+    for offset_type in offset_types:
+        fig.add_trace(go.Bar(
+            name=f'{offset_type}',
+            x=[p['Year'] for p in projections],
+            y=[p['Sustainable Fuel'][offset_type] for p in projections],
+            opacity=0.7,
+            base=base,
+        ))
+        if base is None:
+            base = [p['Sustainable Fuel'][offset_type] for p in projections]
+        else:
+            base = [base[i] + p['Sustainable Fuel'][offset_type] for i, p in enumerate(projections)]
+
+fig.update_layout(
+    title='Overall Fuel Consumption Projections',
+    xaxis_title='Year',
+    yaxis_title='Fuel Amount (kg)',
+    barmode='stack',
+    showlegend=True
+)
+
+st.plotly_chart(fig)
+
+st.title("Seasonality")
+
+session = get_active_session()
+
+db = "JETSTAR_SNOWCAMP_MOCK_DATA"
+schema = "usecase_sustainability"
+
+st.image("qantas_plan.png")
+
+# Define the options for the dropdown
+options = {
+    "None": 1,
+    "Payload (kg)": "sum(PAYLOAD_KG)",
+    "Payload + Fuel (kg)": "(sum(PAYLOAD_KG) + sum(FUEL_KG))",
+    "Number of Filghts": "COUNT(FB.FLIGHT_LEG_ID)",
+    "Taxi Out (min)": "(sum(TAXI_OUT_MIN))",
+    "Wind": "sum(WINDS_COMPONENT)",
+    "Number of Filghts & Payload": "(sum(PAYLOAD_KG)*COUNT(FB.FLIGHT_LEG_ID))"
+}
+
+# Create the selectbox
+normalization_factor = st.selectbox(
+    "Normalization Factor",
+    options.keys()
+)
+
+normalized_seasonality_query = f"""
+select sum(fuel_kg)/{options[normalization_factor]} fuel, dep_ts::date as date, 
+from {db}.{schema}.fuel_burn fb
+full join {db}.{schema}.flight_schedule as fs on fs.flight_leg_id=fb.flight_leg_id 
+full join {db}.{schema}.route_efficiency using(origin, destination)
+
+group by date
+order by date;
+"""
+normalized_seasonality_df = session.sql(normalized_seasonality_query).to_pandas()
+
+# Create visualization
+fig = go.Figure()
+
+# Add line for total fuel
+fig.add_trace(go.Scatter(
+    name=f'Seasonality',
+    x=normalized_seasonality_df["DATE"],
+    y=normalized_seasonality_df["FUEL"],
+    mode='lines',
+))
+
+fig.update_layout(
+    title='Normalized Overall Fuel Consumption by Season',
+    xaxis_title='Date',
+    yaxis_title='Fuel Amount (kg)' if normalization_factor is "None" else f'Fuel Amount (kg)/{normalization_factor}',
+)
+
+st.plotly_chart(fig)
+
+st.title("Daily Variability")
+
+session = get_active_session()
+
+db = "JETSTAR_SNOWCAMP_MOCK_DATA"
+schema = "usecase_sustainability"
+
+st.image("qantas_plan.png")
+
+# Define the options for the dropdown
+options = {
+    "None": 1,
+    "Payload (kg)": "sum(PAYLOAD_KG)",
+    "Payload + Fuel (kg)": "(sum(PAYLOAD_KG) + sum(FUEL_KG))",
+    "Number of Filghts": "COUNT(FB.FLIGHT_LEG_ID)",
+    "Taxi Out (min)": "(sum(TAXI_OUT_MIN))",
+    "Wind": "sum(WINDS_COMPONENT)",
+    "Number of Filghts & Payload": "(sum(PAYLOAD_KG)*COUNT(FB.FLIGHT_LEG_ID))"
+}
+
+# Create the selectbox
+normalization_factor = st.selectbox(
+    "Normalization Factor",
+    options.keys()
+)
+
+normalized_seasonality_query = f"""
+select sum(fuel_kg)/{options[normalization_factor]} fuel, hour(dep_ts) as hour, 
+from {db}.{schema}.fuel_burn fb
+full join {db}.{schema}.flight_schedule as fs on fs.flight_leg_id=fb.flight_leg_id 
+full join {db}.{schema}.route_efficiency using(origin, destination)
+
+group by hour
+order by hour;
+"""
+normalized_seasonality_df = session.sql(normalized_seasonality_query).to_pandas()
+
+# Create visualization
+fig = go.Figure()
+
+# Add line for total fuel
+fig.add_trace(go.Scatter(
+    name=f'Seasonality',
+    x=normalized_seasonality_df["HOUR"],
+    y=normalized_seasonality_df["FUEL"],
+    mode='lines',
+))
+
+fig.update_layout(
+    title='Normalized Overall Fuel Consumption by Hour',
+    xaxis_title='Hour of Day',
+    yaxis_title='Fuel Amount (kg)' if normalization_factor is "None" else f'Fuel Amount (kg)/{normalization_factor}',
 )
 
 st.plotly_chart(fig)

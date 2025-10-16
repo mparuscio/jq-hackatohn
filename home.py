@@ -3,12 +3,13 @@ import streamlit as st
 
 st.set_page_config(layout="wide")
 st.title("Setting the Scene:  Problem Statement")
-st.image("qantas_plan.png")
+st.image("net_zero_byte_2.jpg")
+
+
+st.text("How can data help us understand where to act, measure impact, and even engage customers to be part of the solution?")
 
 st.markdown("""
-Aviation is an **Hard-to-abate** sector, which means that we there are no short term plans to remove carbon-based fuels from the aircraft because such technology simply does not exist yet.
-Despite this fact, the Qantas Group has a plan to reduce emissions and reach the **Net-0** by 2050! 
-\n This plan is formed by the following Three Pillars:
+The plan is formed by the following Three Pillars:
 """)
 
 col1, col2, col3 = st.columns([1,1,1])
@@ -43,6 +44,5 @@ with col3:
 """)
 
 
-st.image("qantas_strategy.png")
 
 

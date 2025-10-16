@@ -13,4 +13,4 @@ st.set_page_config(layout="wide")
 st.title("Conclusions")
 
 st.text("""Through Snowflake’s unified data ecosystem and Streamlit’s interactivity, we’ve shown how aviation can analyze, act, and engage — all through data""")
-st.markdown("""Net zero isn’t a **dream** — it’s a data problem we can solve byte by byte")
+st.markdown("""Net zero isn’t a **dream** — it’s a data problem we can solve byte by byte""")
